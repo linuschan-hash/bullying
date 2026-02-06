@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>打破沉默：像素校園的迴聲</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-dark: #2c3e50;
+            --accent-blue: #3498db;
+            --danger-red: #e74c3c;
+            --paper-bg: rgba(253, 251, 247, 0.96);
+            --transition-speed: 0.8s;
+        }
+
+        /* 修復背景顯示邏輯 */
+        body { 
+            transition: background var(--transition-speed) ease-in-out; 
+            margin: 0; min-height: 100vh; 
+            display: flex; justify-content: center; align-items: center; 
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #1a1a1a; /* 黑色底層，防止圖片加載前閃白 */
+            background-position: center;
+            background-size: cover;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+        }
+        
+        /* 每個場景的背景圖連結 (確保使用 HTTPS) */
+        body.theme-start { background-image: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url('https://img.itch.zone/aW1nLzI5Mzg5MjgucG5n/original/E%2BFrvP.png'); } 
+        body.theme-hallway { background-image: url('https://img.itch.zone/aW1nLzI5Mzg5MjcucG5n/original/m9O%2FfB.png'); } 
+        body.theme-dark { background-image: linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), url('https://img.itch.zone/aW1nLzQ4NjU2OTIucG5n/original/hP9kXo.png'); } 
+        body.theme-washroom { background-image: url('https://img.itch.zone/aW1nLzI5Mzg5MjYucG5n/original/2Yl9Kz.png'); } 
+        body.theme-phone { background-image: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url('https://img.itch.zone/aW1nLzQ4NjU2OTIucG5n/original/hP9kXo.png'); } 
+        body.theme-office { background-image: linear-gradient(rgba(255,255,255,0.1), rgba(255,255,255,0.1)), url('https://img.itch.zone/aW1nLzI5Mzg5MjcucG5n/original/m9O%2FfB.png'); } 
+
+        #game-box {
+            background: var(--paper-bg);
+            width: 90%; max-width: 620px; padding: 40px; border-radius: 12px;
+            box-shadow: 0 0 50px rgba(0,0,0,0.5); position: relative;
+            border: 4px solid #333; z-index: 5;
+        }
+
+        #timer-container { position: absolute; top: 0; left: 0; width: 100%; height: 8px; background: rgba(0,0,0,0.1); }
+        #timer-bar { height: 100%; background: var(--danger-red); width: 100%; transition: width 1s linear; }
+
+        #scene-title { color: var(--primary-dark); font-size: 1.8rem; font-weight: 700; margin-bottom: 20px; border-left: 6px solid var(--accent-blue); padding-left: 15px; }
+        #scene-text { line-height: 1.8; font-size: 1.15rem; color: #1a1a1a; margin-bottom: 30px; }
+
+        .btn-list { display: flex; flex-direction: column; gap: 12px; }
+        button {
+            padding: 16px 20px; border: 2px solid #333; background: #fff; border-radius: 8px;
+            cursor: pointer; font-size: 1.05rem; text-align: left; box-shadow: 4px 4px 0px #333;
+            transition: 0.2s; font-family: inherit;
+        }
+        button:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0px #333; background: #f0f8ff; }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body class="theme-start">
+
+<div id="game-box">
+    <div id="start-page">
+        <h2 id="scene-title">校園的迴聲：序章</h2>
+        <p id="scene-text">
+            你是子謙。這座校園正迴盪著被忽視的哭聲。<br><br>
+            每個抉擇你有 <strong>40 秒</strong> 的思考時間。<br>
+            請點擊下方按鈕開始。
+        </p>
+        <button style="width:100%; text-align:center;" onclick="startGame()">踏入校門</button>
+    </div>
+
+    <div id="play-area" class="hidden">
+        <div id="timer-container"><div id="timer-bar"></div></div>
+        <h2 id="scene-title" id="display-title"></h2>
+        <p id="scene-text" id="display-text"></p>
+        <div class="btn-list" id="options"></div>
+    </div>
+
+    <div id="ending" class="hidden">
+        <h2 id="end-title" style="color: var(--primary-dark); font-size: 1.8rem;"></h2>
+        <p id="end-text" style="line-height: 1.8; margin: 20px 0;"></p>
+        <button style="width:100%; text-align:center; background:#333; color:#fff;" onclick="location.reload()">重新開始</button>
+    </div>
+</div>
+
+<script>
+    let timeLeft = 40; // 設定為 40 秒
+    let timerInterval;
+    let scores = { brave: 0, empathy: 0, fear: 0 };
+
+    const story = {
+        s1: { title: "08:15 走廊的挑釁", theme: "theme-hallway", text: "大華在走廊攔住阿強，強行搶走他的便當盒：「這菜色太爛了吧？我幫你處理。」說完作勢要丟進垃圾桶。阿強紅著眼眶不敢說話。", 
+              options: [{ text: "「還給他，這不好玩。」", next: "s2", score: { brave: 2 } }, { text: "假裝沒看見，快步走進教室。", next: "s2", score: { fear: 2 } }, { text: "分一點點心給阿強。", next: "s2", score: { empathy: 2 } }] },
+        s2: { title: "10:30 體育課器材室", theme: "theme-dark", text: "大華把阿強關在器材室威脅：「敢告狀你就死定了。」你正巧在門外。", 
+              options: [{ text: "大喊：「老師來了！」嚇跑大華。", next: "s3", score: { brave: 2 } }, { text: "等大華走後再幫阿強開門。", next: "s3", score: { empathy: 2 } }, { text: "趕快搬完墊子離開。", next: "s3", score: { fear: 2 } }] },
+        s3: { title: "12:10 消失的便當袋", theme: "theme-hallway", text: "全班都在嘲笑找不到便當的阿強，大華正看著你的反應。", 
+              options: [{ text: "主動幫阿強一起找。", next: "s4", score: { empathy: 2 } }, { text: "大聲制止：「這太過分了。」", next: "s4", score: { brave: 3 } }, { text: "低頭吃自己的飯。", next: "s4", score: { fear: 2 } }] },
+        s4: { title: "15:00 廁所的潑水聲", theme: "theme-washroom", text: "阿強全身濕透走出隔間，大華一群人大笑離開。阿強眼神充滿絕望。", 
+              options: [{ text: "遞給他你的體育服替換。", next: "s5", score: { empathy: 3 } }, { text: "陪他去導師辦公室。", next: "s5", score: { brave: 3 } }, { text: "裝作在洗手，等他走後才離開。", next: "s5", score: { fear: 2 } }] },
+        s5: { title: "20:00 群組風暴", theme: "theme-phone", text: "群組瘋傳阿強落水的醜照，大華標註你問：『好不好笑？』", 
+              options: [{ text: "「這一點都不好笑。」", next: "s6", score: { brave: 3 } }, { text: "私訊安慰阿強。", next: "s6", score: { empathy: 2 } }, { text: "傳笑臉貼圖避免被盯上。", next: "s6", score: { fear: 3 } }] },
+        s6: { title: "次日 07:30 空位", theme: "theme-hallway", text: "阿強沒來學校，聽說家長投訴了。大華瞪著每一個人。", 
+              options: [{ text: "主動找老師說明實情。", next: "s7", score: { brave: 3 } }, { text: "等老師問起才勉強說出。", next: "s7", score: { empathy: 1 } }, { text: "繼續沈默保護自己。", next: "s7", score: { fear: 3 } }] },
+        s7: { title: "09:00 辦公室談話", theme: "theme-office", text: "老師問你發生了什麼事？大華在窗外死死盯著你。", 
+              options: [{ text: "詳細交代大華的行為。", next: "s8", score: { brave: 3 } }, { text: "「我不太清楚細節。」", next: "s8", score: { fear: 2 } }, { text: "把責任推給其他人。", next: "s8", score: { fear: 4 } }] },
+        s8: { title: "16:00 最後的對視", theme: "theme-hallway", text: "大華在門口攔住你：「是你告密的吧？」", 
+              options: [{ text: "直視他：「是你做錯了。」", next: "finish", score: { brave: 5 } }, { text: "「大家都看到了。」", next: "finish", score: { brave: 1 } }, { text: "低頭跑開。", next: "finish", score: { fear: 4 } }] }
+    };
+
+    function startGame() {
+        document.getElementById('start-page').classList.add('hidden');
+        document.getElementById('play-area').classList.remove('hidden');
+        renderScene("s1");
+    }
+
+    function startTimer(nextScene) {
+        clearInterval(timerInterval);
+        timeLeft = 40;
+        const timerBar = document.getElementById('timer-bar');
+        timerBar.style.width = '100%';
+        
+        timerInterval = setInterval(() => {
+            timeLeft--;
+            timerBar.style.width = (timeLeft / 40 * 100) + '%';
+            if (timeLeft <= 0) {
+                clearInterval(timerInterval);
+                scores.fear += 2;
+                renderScene(nextScene);
+            }
+        }, 1000);
+    }
+
+    function renderScene(key) {
+        if (key === "finish") { showEnding(); return; }
+        const scene = story[key];
+        document.body.className = scene.theme;
+        
+        // 確保選取正確的元素填充內容
+        document.querySelectorAll("#scene-title")[1].innerText = scene.title;
+        document.querySelectorAll("#scene-text")[1].innerText = scene.text;
+        
+        const optionsDiv = document.getElementById("options");
+        optionsDiv.innerHTML = "";
+        
+        scene.options.forEach((opt) => {
+            const btn = document.createElement("button");
+            btn.innerText = opt.text;
+            btn.onclick = () => {
+                for (let s in opt.score) scores[s] += opt.score[s];
+                renderScene(opt.next);
+            };
+            optionsDiv.appendChild(btn);
+        });
+        startTimer(scene.options[0].next);
+    }
+
+    function showEnding() {
+        clearInterval(timerInterval);
+        document.getElementById("play-area").classList.add("hidden");
+        const screen = document.getElementById("ending");
+        screen.classList.remove("hidden");
+        document.body.className = "theme-start";
+
+        let title, text;
+        if (scores.brave >= 15) {
+            title = "結局 A：勇氣的連線";
+            text = "你的堅持打破了欺凌的循環。阿強在休養後重新回到學校。勇氣是可以傳染的。";
+        } else if (scores.empathy >= 10) {
+            title = "結局 B：黑暗中的微光";
+            text = "你的溫柔讓阿強支撐了下去。他告訴老師，是因為你的陪伴他才沒有徹底絕望。";
+        } else if (scores.fear >= 15) {
+            title = "壞結局 C：下一個獵物";
+            text = "因為你的恐懼，大華發現你更容易操控。在阿強轉學後，你成為了下一個目標。";
+        } else {
+            title = "壞結局 D：沈默的共犯";
+            text = "阿強最終轉學了。那份沈默的重量化作了長久的陰影，在深夜裡質問著你。";
+        }
+        document.getElementById("end-title").innerText = title;
+        document.getElementById("end-text").innerText = text;
+    }
+</script>
+</body>
+</html>
